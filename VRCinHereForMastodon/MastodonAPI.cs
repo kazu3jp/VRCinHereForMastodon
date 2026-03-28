@@ -259,7 +259,7 @@ namespace VRCinHereForMastodon
             var RestClient = new RestClient(Endpoint);
             var Request = new RestRequest("/api/v1/statuses", Method.Post);
             Request.AddHeader("Authorization", "Bearer " + Common.Decrypt(Properties.Settings.Default.APIKey));
-            Request.AddParameter("status", NoteText, ParameterType.QueryString);
+            Request.AddParameter("status", NoteText);
             
             if (Properties.Settings.Default.TootPublishType == 0) { Request.AddParameter("visibility", "public"); }
             else if (Properties.Settings.Default.TootPublishType == 1) { Request.AddParameter("visibility", "unlisted"); }
