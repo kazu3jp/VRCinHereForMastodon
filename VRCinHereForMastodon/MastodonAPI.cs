@@ -1,9 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
+﻿using System.Diagnostics;
 using System.Text;
-using System.Threading.Tasks;
 using RestSharp;
 
 namespace VRCinHereForMastodon
@@ -22,258 +18,227 @@ namespace VRCinHereForMastodon
         public const int InstanceTypePrivate = 8;
         public const int InstanceTypePostTest = 9;
 
+        private static bool PrevHidden = false;
 
-        static bool PrevHidden = false; //前回投稿がワールド名非表示であったか保持(ワールド名非表示投稿の連続を防ぐため)
+        private class InstanceConfig
+        {
+            public string Label { get; set; } = "";
+            public string? SettingKey { get; set; }
+            public string? URLSettingKey { get; set; }
+            public bool RequireWorldName { get; set; } = true;
+        }
+
+        private static readonly Dictionary<int, InstanceConfig> InstanceConfigs = new()
+        {
+            { InstanceTypePublic, new() { Label = "Public", SettingKey = "TootPublicJoin", URLSettingKey = "TootPublicJoinURL", RequireWorldName = true } },
+            { InstanceTypeFriendsPlus, new() { Label = "Friend+", SettingKey = "TootFriendsPlusJoin", URLSettingKey = "TootFriendsPlusJoinURL", RequireWorldName = true } },
+            { InstanceTypeFriendsOnly, new() { Label = "FriendOnly", SettingKey = "TootFriendsOnlyJoin", URLSettingKey = "TootFriendsOnlyJoinURL", RequireWorldName = true } },
+            { InstanceTypeGroupPublic, new() { Label = "Group Public", SettingKey = "TootGroupPublicJoin", URLSettingKey = "TootGroupPublicJoinURL", RequireWorldName = true } },
+            { InstanceTypeGroupPlus, new() { Label = "Group+", SettingKey = "TootGroupPlusJoin", URLSettingKey = "TootGroupPlusJoinURL", RequireWorldName = true } },
+            { InstanceTypeGroup, new() { Label = "Group", SettingKey = "TootGroupJoin", URLSettingKey = null, RequireWorldName = false } },
+            { InstanceTypeInvitePlus, new() { Label = "Invite+", SettingKey = "TootInvitePlusJoin", URLSettingKey = null, RequireWorldName = false } },
+            { InstanceTypePrivate, new() { Label = "Private", SettingKey = "TootPrivateJoin", URLSettingKey = null, RequireWorldName = false } },
+        };
+
         public static void SendToot(string WorldID, string WorldName, string InstanceID, int InstanceType)
         {
-            if (Form1.SilentMode) return; //投稿一時停止
-            if (Common.IsSpecifyWorld(WorldID) && Properties.Settings.Default.NotTootSpecifyWorldJoin) return; //指定ワールドに合致、かつ指定ワールドはノートしない場合
+            if (Form1.SilentMode) return;
+            if (Common.IsSpecifyWorld(WorldID) && Properties.Settings.Default.NotTootSpecifyWorldJoin) return;
 
-            Debug.WriteLine("WorldID -> " + WorldID);
-            Debug.WriteLine("WorldName -> " + WorldName);
-            Debug.WriteLine("InstanceID -> " + InstanceID);
-            Debug.WriteLine("InstanceType -> " + InstanceType);
+            Debug.WriteLine($"WorldID -> {WorldID}");
+            Debug.WriteLine($"WorldName -> {WorldName}");
+            Debug.WriteLine($"InstanceID -> {InstanceID}");
+            Debug.WriteLine($"InstanceType -> {InstanceType}");
 
-            var NoteText = "";
-            if (InstanceType == InstanceTypePublic)
-            {
-                if (!Properties.Settings.Default.TootPublicJoin) return;
-                NoteText += Properties.Settings.Default.TootText + "\n[Public]";
-                if (Common.IsSpecifyWorld(WorldID) && Properties.Settings.Default.MaskSpecifyWorldName)
-                {
-                    if (PrevHidden)
-                    {
-                        return;
-                    }
-                    PrevHidden = true;
-                    NoteText += " --- ワールド名非表示 ---";
-                    
-                }
-                else
-                {
-                    PrevHidden = false;
-                    if (Properties.Settings.Default.TootPublicJoinURL)
-                    {
-                        NoteText += $"[{WorldName}](https://vrchat.com/home/launch?worldId={WorldID}&instanceId={InstanceID}) (リンクからJoin可能)";
-                        //NoteText += "\nこのインスタンスへJoin → https://vrchat.com/home/launch?worldId=" + WorldID + "&instanceId=" + InstanceID;
-                    }
-                    else
-                    {
-                        NoteText += WorldName;
-                    }
-                }
-            }
-            else if (InstanceType == InstanceTypeFriendsPlus)
-            {
-                if (!Properties.Settings.Default.TootFriendsPlusJoin) return;
-                NoteText += Properties.Settings.Default.TootText + "\n[Friend+]";
-                if (Common.IsSpecifyWorld(WorldID) && Properties.Settings.Default.MaskSpecifyWorldName)
-                {
-                    if (PrevHidden)
-                    {
-                        return;
-                    }
-                    PrevHidden = true;
-                    NoteText += " --- ワールド名非表示 ---";
-                }
-                else
-                {
-                    PrevHidden = false;
-                    if (Properties.Settings.Default.TootFriendsPlusJoinURL)
-                    {
-                        NoteText += $"[{WorldName}](https://vrchat.com/home/launch?worldId={WorldID}&instanceId={InstanceID}) (リンクからJoin可能)";
-                        //NoteText += "\nこのインスタンスへJoin → https://vrchat.com/home/launch?worldId=" + WorldID + "&instanceId=" + InstanceID;
-                    }
-                    else
-                    {
-                        NoteText += WorldName;
-                    }
-                }
-            }
-            else if (InstanceType == InstanceTypeFriendsOnly)
-            {
-                if (!Properties.Settings.Default.TootFriendsOnlyJoin) return;
-                NoteText += Properties.Settings.Default.TootText + "\n[FriendOnly]";
-                if (Common.IsSpecifyWorld(WorldID) && Properties.Settings.Default.MaskSpecifyWorldName)
-                {
-                    if (PrevHidden)
-                    {
-                        return;
-                    }
-                    PrevHidden = true;
-                    NoteText += " --- ワールド名非表示 ---";
-                }
-                else
-                {
-                    PrevHidden = false;
-                    if (Properties.Settings.Default.TootFriendsOnlyJoinURL)
-                    {
-                        NoteText += $"[{WorldName}](https://vrchat.com/home/launch?worldId={WorldID}&instanceId={InstanceID}) (リンクからJoin可能)";
-                        //NoteText += "\nこのインスタンスへJoin → https://vrchat.com/home/launch?worldId=" + WorldID + "&instanceId=" + InstanceID;
-                    }
-                    else
-                    {
-                        NoteText += WorldName;
-                    }
-                }
-            }
-            else if (InstanceType == InstanceTypeGroupPublic)
-            {
-                if (!Properties.Settings.Default.TootGroupPublicJoin) return;
-                NoteText += Properties.Settings.Default.TootText + "\n[Group Public]";
-                if (Common.IsSpecifyWorld(WorldID) && Properties.Settings.Default.MaskSpecifyWorldName)
-                {
-                    if (PrevHidden)
-                    {
-                        return;
-                    }
-                    PrevHidden = true;
-                    NoteText += " --- ワールド名非表示 ---";
-                }
-                else
-                {
-                    PrevHidden = false;
-                    if (Properties.Settings.Default.TootGroupPublicJoinURL)
-                    {
-                        NoteText += $"[{WorldName}](https://vrchat.com/home/launch?worldId={WorldID}&instanceId={InstanceID}) (リンクからJoin可能)";
-                    }
-                    else
-                    {
-                        NoteText += WorldName;
-                    }
-                }
-            }
-            else if (InstanceType == InstanceTypeGroupPlus)
-            {
-                if (!Properties.Settings.Default.TootGroupPlusJoin) return;
-                NoteText += Properties.Settings.Default.TootText + "\n[Group+]";
-                if (Common.IsSpecifyWorld(WorldID) && Properties.Settings.Default.MaskSpecifyWorldName)
-                {
-                    if (PrevHidden)
-                    {
-                        return;
-                    }
-                    PrevHidden = true;
-                    NoteText += " --- ワールド名非表示 ---";
-                }
-                else
-                {
-                    PrevHidden = false;
-                    NoteText += WorldName;
-                    if (Properties.Settings.Default.TootGroupPlusJoinURL)
-                    {
-                        NoteText += $"[{WorldName}](https://vrchat.com/home/launch?worldId={WorldID}&instanceId={InstanceID}) (リンクからJoin可能)";
-                        //NoteText += "\nこのインスタンスへJoin → https://vrchat.com/home/launch?worldId=" + WorldID + "&instanceId=" + InstanceID;
-                    }
-                    else
-                    {
-                        NoteText += WorldName;
-                    }
-                }
-            }
-            else if (InstanceType == InstanceTypeGroup)
-            {
-                if (!Properties.Settings.Default.TootGroupJoin) return;
-                NoteText += Properties.Settings.Default.TootText + "\n[Group]";
-                if ((Common.IsSpecifyWorld(WorldID) && Properties.Settings.Default.MaskSpecifyWorldName) || !Properties.Settings.Default.TootGroupJoinWorldName)
-                {
-                    if (PrevHidden)
-                    {
-                        return;
-                    }
-                    PrevHidden = true;
-                    NoteText += " --- ワールド名非表示 ---";
-                }
-                else
-                {
-                    PrevHidden = false;
-                    NoteText += WorldName;
-                }
-            }
-            else if (InstanceType == InstanceTypeInvitePlus)
-            {
-                if (!Properties.Settings.Default.TootInvitePlusJoin) return;
-                NoteText += Properties.Settings.Default.TootText + "\n[Invite+]";
-                if ((Common.IsSpecifyWorld(WorldID) && Properties.Settings.Default.MaskSpecifyWorldName) || !Properties.Settings.Default.TootInvitePlusJoinWorldName)
-                {
-                    if (PrevHidden)
-                    {
-                        return;
-                    }
-                    PrevHidden = true;
-                    NoteText += " --- ワールド名非表示 ---";
-                }
-                else
-                {
-                    PrevHidden = false;
-                    NoteText += WorldName;
-                }
-            }
-            else if (InstanceType == InstanceTypePrivate)
-            {
-                if (!Properties.Settings.Default.TootPrivateJoin) return;
-                NoteText += Properties.Settings.Default.TootText + "\n[Private]";
-                if ((Common.IsSpecifyWorld(WorldID) && Properties.Settings.Default.MaskSpecifyWorldName) || !Properties.Settings.Default.TootPrivateJoinWorldName)
-                {
-                    if (PrevHidden)
-                    {
-                        return;
-                    }
-                    PrevHidden = true;
-                    NoteText += " --- ワールド名非表示 ---";
-                }
-                else
-                {
-                    PrevHidden = false;
-                    NoteText += WorldName;
-                }
-            }
-            else if (InstanceType == InstanceTypeLogout)
-            {
-                if (!Properties.Settings.Default.TootLogout) return;
+            var NoteText = BuildNoteText(WorldID, WorldName, InstanceID, InstanceType);
+            if (string.IsNullOrEmpty(NoteText))
+                return;
 
+            PostToMastodon(NoteText);
+        }
+
+        private static string BuildNoteText(string WorldID, string WorldName, string InstanceID, int InstanceType)
+        {
+            return InstanceType switch
+            {
+                InstanceTypePublic => BuildWorldJoinText(WorldID, WorldName, InstanceID, InstanceType),
+                InstanceTypeFriendsPlus => BuildWorldJoinText(WorldID, WorldName, InstanceID, InstanceType),
+                InstanceTypeFriendsOnly => BuildWorldJoinText(WorldID, WorldName, InstanceID, InstanceType),
+                InstanceTypeGroupPublic => BuildWorldJoinText(WorldID, WorldName, InstanceID, InstanceType),
+                InstanceTypeGroupPlus => BuildWorldJoinText(WorldID, WorldName, InstanceID, InstanceType),
+                InstanceTypeGroup => BuildWorldJoinText(WorldID, WorldName, InstanceID, InstanceType),
+                InstanceTypeInvitePlus => BuildWorldJoinText(WorldID, WorldName, InstanceID, InstanceType),
+                InstanceTypePrivate => BuildWorldJoinText(WorldID, WorldName, InstanceID, InstanceType),
+                InstanceTypeLogout => BuildLogoutText(),
+                InstanceTypeError => BuildErrorText(),
+                InstanceTypePostTest => BuildPostTestText(),
+                _ => ""
+            };
+        }
+
+        private static string BuildWorldJoinText(string WorldID, string WorldName, string InstanceID, int InstanceType)
+        {
+            if (!InstanceConfigs.TryGetValue(InstanceType, out var config))
+                return "";
+
+            if (!GetSetting(config.SettingKey))
+                return "";
+
+            var text = new StringBuilder();
+            text.Append(Properties.Settings.Default.TootText);
+            text.Append($"\n[{config.Label}]");
+
+            var shouldHideWorldName = ShouldHideWorldName(WorldID, InstanceType);
+
+            if (shouldHideWorldName)
+            {
+                if (PrevHidden)
+                    return "";
+
+                PrevHidden = true;
+                text.Append(" --- ワールド名非表示 ---");
+            }
+            else
+            {
                 PrevHidden = false;
-                NoteText += "VRChatからログアウトしました。";
-            }
-            else if (InstanceType == InstanceTypeError)
-            {
-                if (!Properties.Settings.Default.TootError) return;
-
-                PrevHidden = false;
-                NoteText += "VRChatからエラー落ちしました。";
-            }
-            else if (InstanceType == InstanceTypePostTest)
-            {
-                NoteText += Properties.Settings.Default.TootText + "\n[TEST]";
-                NoteText += "[投稿テスト](https://hello.vrchat.com/) (~~リンクからJoin可能~~ ←投稿テストのためダミーURL)";
+                AppendWorldInfo(text, WorldID, WorldName, InstanceID, config);
             }
 
-            NoteText += "\n#VRCinHere";
+            AppendHashtag(text);
+            return text.ToString();
+        }
+
+        private static bool ShouldHideWorldName(string WorldID, int InstanceType)
+        {
+            if (Common.IsSpecifyWorld(WorldID) && Properties.Settings.Default.MaskSpecifyWorldName)
+                return true;
+
+            return InstanceType switch
+            {
+                InstanceTypeGroup => !Properties.Settings.Default.TootGroupJoinWorldName,
+                InstanceTypeInvitePlus => !Properties.Settings.Default.TootInvitePlusJoinWorldName,
+                InstanceTypePrivate => !Properties.Settings.Default.TootPrivateJoinWorldName,
+                _ => false
+            };
+        }
+
+        private static void AppendWorldInfo(StringBuilder text, string WorldID, string WorldName, string InstanceID, InstanceConfig config)
+        {
+            if (!config.RequireWorldName)
+            {
+                text.Append(WorldName);
+                return;
+            }
+
+            var useURL = config.URLSettingKey != null && GetSetting(config.URLSettingKey);
+
+            if (useURL)
+            {
+                text.Append($"{WorldName}\nhttps://vrchat.com/home/launch?worldId={WorldID}&instanceId={InstanceID}");
+            }
+            else
+            {
+                text.Append(WorldName);
+            }
+        }
+
+        private static string BuildLogoutText()
+        {
+            if (!Properties.Settings.Default.TootLogout)
+                return "";
+
+            PrevHidden = false;
+            var text = new StringBuilder("VRChatからログアウトしました。");
+            AppendHashtag(text);
+            return text.ToString();
+        }
+
+        private static string BuildErrorText()
+        {
+            if (!Properties.Settings.Default.TootError)
+                return "";
+
+            PrevHidden = false;
+            var text = new StringBuilder("VRChatがクラッシュしました。");
+            AppendHashtag(text);
+            return text.ToString();
+        }
+
+        private static string BuildPostTestText()
+        {
+            var text = new StringBuilder();
+            text.Append(Properties.Settings.Default.TootText);
+            text.Append("\n[TEST]");
+            text.Append("[投稿テスト](https://hello.vrchat.com/)");
+            AppendHashtag(text);
+            return text.ToString();
+        }
+
+        private static void AppendHashtag(StringBuilder text)
+        {
             if (Properties.Settings.Default.TootDateTime)
             {
-                NoteText += " " + DateTime.Now.ToLongTimeString();
+                text.Append("\n");
+                text.Append(DateTime.Now.ToString("HH時mm分ss秒"));
             }
-            Debug.WriteLine(NoteText);
+        }
 
-            var Endpoint = "https://" + Properties.Settings.Default.ServerDomain;
-            var RestClient = new RestClient(Endpoint);
-            var Request = new RestRequest("/api/v1/statuses", Method.Post);
-            Request.AddHeader("Authorization", "Bearer " + Common.Decrypt(Properties.Settings.Default.APIKey));
-            Request.AddParameter("status", NoteText);
-            
-            if (Properties.Settings.Default.TootPublishType == 0) { Request.AddParameter("visibility", "public"); }
-            else if (Properties.Settings.Default.TootPublishType == 1) { Request.AddParameter("visibility", "unlisted"); }
-            else if (Properties.Settings.Default.TootPublishType == 2) { Request.AddParameter("visibility", "private"); }
-            else { Request.AddParameter("visibility", "unlisted"); }
+        private static bool GetSetting(string? settingKey)
+        {
+            if (settingKey == null)
+                return true;
+
+            return settingKey switch
+            {
+                "TootPublicJoin" => Properties.Settings.Default.TootPublicJoin,
+                "TootFriendsPlusJoin" => Properties.Settings.Default.TootFriendsPlusJoin,
+                "TootFriendsOnlyJoin" => Properties.Settings.Default.TootFriendsOnlyJoin,
+                "TootGroupPublicJoin" => Properties.Settings.Default.TootGroupPublicJoin,
+                "TootGroupPlusJoin" => Properties.Settings.Default.TootGroupPlusJoin,
+                "TootGroupJoin" => Properties.Settings.Default.TootGroupJoin,
+                "TootInvitePlusJoin" => Properties.Settings.Default.TootInvitePlusJoin,
+                "TootPrivateJoin" => Properties.Settings.Default.TootPrivateJoin,
+                "TootPublicJoinURL" => Properties.Settings.Default.TootPublicJoinURL,
+                "TootFriendsPlusJoinURL" => Properties.Settings.Default.TootFriendsPlusJoinURL,
+                "TootFriendsOnlyJoinURL" => Properties.Settings.Default.TootFriendsOnlyJoinURL,
+                "TootGroupPublicJoinURL" => Properties.Settings.Default.TootGroupPublicJoinURL,
+                "TootGroupPlusJoinURL" => Properties.Settings.Default.TootGroupPlusJoinURL,
+                _ => false
+            };
+        }
+
+        private static void PostToMastodon(string noteText)
+        {
+            Debug.WriteLine(noteText);
+
             try
             {
-                var Response = RestClient.Execute(Request);
-                Debug.WriteLine(Response.Content);
+                var endpoint = "https://" + Properties.Settings.Default.ServerDomain;
+                var client = new RestClient(endpoint);
+                var request = new RestRequest("/api/v1/statuses", Method.Post);
+
+                request.AddHeader("Authorization", "Bearer " + Common.Decrypt(Properties.Settings.Default.APIKey));
+                request.AddParameter("status", noteText);
+                request.AddParameter("visibility", GetVisibility());
+
+                var response = client.Execute(request);
+                Debug.WriteLine(response.Content);
             }
             catch (Exception ex)
             {
-                Debug.WriteLine(ex.Message);
+                Debug.WriteLine($"Error posting to Mastodon: {ex.Message}");
             }
+        }
+
+        private static string GetVisibility()
+        {
+            return Properties.Settings.Default.TootPublishType switch
+            {
+                0 => "public",
+                1 => "unlisted",
+                2 => "private",
+                _ => "unlisted"
+            };
         }
     }
 }
