@@ -10,6 +10,9 @@ namespace VRCinHereForMastodon
 {
     internal class Log
     {
+        private static Process? VRChatProcess = null;
+        private static Thread? ProcessMonitorThread = null;
+
         public static void Monitoring()
         {
             var LogWatcher = new FileSystemWatcher();
@@ -23,6 +26,64 @@ namespace VRCinHereForMastodon
             Debug.WriteLine("[LOG]Event detect -> File Created");
             Debug.WriteLine("[LOG]Filter -> " + LogWatcher.Filter);
             Debug.WriteLine("[LOG]Monitoring Start -> " + DateTime.Now);
+
+            // VRChat.exeプロセス監視を開始
+            ProcessMonitorThread = new Thread(MonitorVRChatProcess);
+            ProcessMonitorThread.IsBackground = true;
+            ProcessMonitorThread.Start();
+            Debug.WriteLine("[LOG]VRChat Process Monitor Started");
+        }
+
+        private static void MonitorVRChatProcess()
+        {
+            while (true)
+            {
+                try
+                {
+                    var Processes = Process.GetProcessesByName("VRChat");
+                    if (Processes.Length > 0)
+                    {
+                        VRChatProcess = Processes[0];
+                        VRChatProcess.EnableRaisingEvents = true;
+                        VRChatProcess.Exited += new EventHandler(VRChatProcess_Exited);
+                        VRChatProcess.WaitForExit();
+                    }
+                    else
+                    {
+                        Thread.Sleep(1000);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine("[LOG]Error in MonitorVRChatProcess: " + ex.Message);
+                    Thread.Sleep(1000);
+                }
+            }
+        }
+
+        private static void VRChatProcess_Exited(object? sender, EventArgs e)
+        {
+            if (VRChatProcess != null && sender is Process ProcessInfo)
+            {
+                var ExitCode = ProcessInfo.ExitCode;
+                Debug.WriteLine($"[LOG]VRChat Process Exited with code: {ExitCode}");
+
+                // 終了コードが0でない場合はエラー落ちと判定
+                if (ExitCode != 0)
+                {
+                    Debug.WriteLine("[LOG]VRChat Error Detected");
+                    // Mastodonに投稿
+                    Thread.Sleep(2000); // ログ書き込み完了を待機
+                    MastodonAPI.SendToot("", "", "", MastodonAPI.InstanceTypeError);
+                }
+                else
+                {
+                    Debug.WriteLine("[LOG]VRChat Normal Logout");
+                }
+
+                VRChatProcess?.Dispose();
+                VRChatProcess = null;
+            }
         }
 
         private static void LogRead(object sender, FileSystemEventArgs e)
@@ -64,8 +125,9 @@ namespace VRCinHereForMastodon
                             }
                             else
                             {
-                                Debug.WriteLine("[LOG]VRChat Error");
-                                MastodonAPI.SendToot("", "", "", MastodonAPI.InstanceTypeError);
+                                Debug.WriteLine("[LOG]VRChat Error (Log Analysis)");
+                                // プロセス監視で既にエラー検出している可能性があるため、
+                                // ここでは追加投稿を避ける
                             }
                             break;
                         }
